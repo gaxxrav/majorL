@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<head><title>{{ product.product_name }}</title></head>
+<body>
+  <h1>{{ product.product_name or "No Name" }}</h1>
+  <p><strong>Brand:</strong> {{ product.brands or "N/A" }}</p>
+  <p><strong>Calories (100g):</strong> {{ product.nutriments.energy_100g or "N/A" }}</p>
+  <p><strong>Ingredients:</strong> {{ product.ingredients_text or "N/A" }}</p>
+  <img src="{{ product.image_url or '' }}" width="200">
+</body>
+</html>

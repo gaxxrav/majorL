@@ -1,3 +1,5 @@
-opencv-python
+Flask
 pyzbar
+opencv-python
+numpy
 requests

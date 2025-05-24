@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Barcode Scanner</title>
+</head>
+<body>
+  <h1>Scan Product</h1>
+  <video id="video" autoplay playsinline width="640" height="480"></video><br>
+  <canvas id="canvas" style="display:none;"></canvas><br>
+  <button onclick="captureAndSend()">Scan</button>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
