@@ -2,14 +2,266 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Barcode Scanner</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
+  <style>
+    .camera-container {
+      position: relative;
+      width: 100%;
+      max-width: 640px;
+      margin: 0 auto;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    #video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .scan-area {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 70%;
+      height: 30%;
+      border: 3px solid #3B82F6;
+      border-radius: 0.5rem;
+      pointer-events: none;
+    }
+    .product-card {
+      display: none;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 </head>
-<body>
-  <h1>Scan Product</h1>
-  <video id="video" autoplay playsinline width="640" height="480"></video><br>
-  <canvas id="canvas" style="display:none;"></canvas><br>
-  <button onclick="captureAndSend()">Scan</button>
+<body class="bg-gray-100 min-h-screen">
 
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-center text-blue-600 mb-8">Barcode Scanner</h1>
+
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-3xl mx-auto">
+      <div class="camera-container mb-6">
+        <video id="video" autoplay playsinline></video>
+        <div class="scan-area"></div>
+      </div>
+
+      <div class="flex flex-col items-center gap-4 mb-6">
+        <div class="flex flex-wrap justify-center gap-4 w-full">
+          <button id="startButton" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+            Start Camera
+          </button>
+          <button id="captureButton" disabled class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition-colors opacity-50 cursor-not-allowed">
+            Scan Barcode
+          </button>
+
+          <div class="relative">
+            <button id="cameraDropdownButton" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center">
+              <span id="currentCamera">Switch Camera</span>
+              <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <div id="cameraDropdown" class="hidden absolute z-10 mt-1 w-48 bg-white rounded-md shadow-lg">
+              <div id="cameraList" class="py-1" role="menu" aria-orientation="vertical" aria-labelledby="cameraDropdownButton"></div>
+            </div>
+          </div>
+        </div>
+        <div id="cameraInfo" class="text-sm text-gray-500"></div>
+      </div>
+
+      <div id="result" class="text-center mb-6">
+        <p id="status" class="text-gray-600">Press 'Start Camera' to begin</p>
+      </div>
+
+      <div id="productCard" class="product-card bg-gray-50 p-6 rounded-lg border border-gray-200">
+        <h2 class="text-xl font-semibold mb-4" id="productName">Product Name</h2>
+        <div class="grid grid-cols-2 gap-4">
+          <div><p class="text-sm text-gray-500">Brand</p><p id="productBrand" class="font-medium">-</p></div>
+          <div><p class="text-sm text-gray-500">Quantity</p><p id="productQuantity" class="font-medium">-</p></div>
+          <div><p class="text-sm text-gray-500">Calories (per 100g)</p><p id="productCalories" class="font-medium">-</p></div>
+          <div><p class="text-sm text-gray-500">Fat (g)</p><p id="productFat" class="font-medium">-</p></div>
+          <div><p class="text-sm text-gray-500">Carbs (g)</p><p id="productCarbs" class="font-medium">-</p></div>
+          <div><p class="text-sm text-gray-500">Protein (g)</p><p id="productProtein" class="font-medium">-</p></div>
+        </div>
+        <div class="mt-4">
+          <p class="text-sm text-gray-500">Ingredients</p>
+          <p id="productIngredients" class="text-sm">-</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="canvas" style="display: none;"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const startButton = document.getElementById('startButton');
+    const captureButton = document.getElementById('captureButton');
+    const cameraDropdownButton = document.getElementById('cameraDropdownButton');
+    const cameraDropdown = document.getElementById('cameraDropdown');
+    const cameraList = document.getElementById('cameraList');
+    const currentCameraElement = document.getElementById('currentCamera');
+    const cameraInfo = document.getElementById('cameraInfo');
+    const statusElement = document.getElementById('status');
+    const productCard = document.getElementById('productCard');
+
+    const productName = document.getElementById('productName');
+    const productBrand = document.getElementById('productBrand');
+    const productQuantity = document.getElementById('productQuantity');
+    const productCalories = document.getElementById('productCalories');
+    const productFat = document.getElementById('productFat');
+    const productCarbs = document.getElementById('productCarbs');
+    const productProtein = document.getElementById('productProtein');
+    const productIngredients = document.getElementById('productIngredients');
+
+    let stream = null;
+    let devices = [];
+    let currentDeviceId = null;
+
+    cameraDropdownButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      cameraDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => {
+      cameraDropdown.classList.add('hidden');
+    });
+
+    cameraDropdown.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    async function populateCameraList() {
+      try {
+        devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        cameraList.innerHTML = '';
+
+        if (videoDevices.length === 0) {
+          cameraList.innerHTML = '<div class="px-4 py-2 text-sm text-gray-700">No cameras found</div>';
+          return;
+        }
+
+        videoDevices.forEach((device, index) => {
+          const label = device.label || `Camera ${index + 1}`;
+          const btn = document.createElement('button');
+          btn.className = 'block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100';
+          btn.textContent = label;
+          btn.dataset.deviceId = device.deviceId;
+
+          btn.addEventListener('click', () => {
+            currentDeviceId = device.deviceId;
+            currentCameraElement.textContent = label;
+            cameraDropdown.classList.add('hidden');
+            startCamera();
+          });
+
+          cameraList.appendChild(btn);
+          if (index === 0 && !currentDeviceId) {
+            currentDeviceId = device.deviceId;
+            currentCameraElement.textContent = label;
+          }
+        });
+
+        cameraInfo.textContent = `${videoDevices.length} camera(s) found`;
+      } catch (err) {
+        cameraInfo.textContent = 'Could not access camera devices';
+        cameraInfo.className = 'text-sm text-red-500';
+      }
+    }
+
+    async function startCamera() {
+      try {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        await populateCameraList();
+
+        const constraints = currentDeviceId
+          ? { video: { deviceId: { exact: currentDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }
+          : { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+
+        startButton.textContent = 'Restart Camera';
+        captureButton.disabled = false;
+        captureButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        statusElement.textContent = 'Camera started. Point at a barcode and click Scan Barcode';
+        statusElement.className = 'text-green-600 mb-4';
+      } catch (err) {
+        statusElement.textContent = 'Error accessing camera. Please grant camera permission.';
+        statusElement.className = 'text-red-600 mb-4';
+      }
+    }
+
+    startButton.addEventListener('click', startCamera);
+
+    captureButton.addEventListener('click', async () => {
+      if (!stream) {
+        statusElement.textContent = 'Please start the camera first';
+        statusElement.className = 'text-red-600';
+        return;
+      }
+
+      productCard.style.display = 'none';
+      statusElement.textContent = 'Scanning barcode...';
+      statusElement.className = 'text-blue-600';
+
+      try {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+          const formData = new FormData();
+          formData.append('image', blob, 'barcode.jpg');
+
+          const response = await fetch('/scan', {
+            method: 'POST',
+            body: formData
+          });
+
+          const result = await response.json();
+
+          if (result.status === 'success') {
+            statusElement.textContent = `Found barcode: ${result.barcode}`;
+            statusElement.className = 'text-green-600';
+
+            const product = result.product;
+            productName.textContent = product.product_name || 'N/A';
+            productBrand.textContent = product.brands || 'N/A';
+            productQuantity.textContent = product.quantity || 'N/A';
+            productCalories.textContent = product.nutriments['energy-kcal_100g'] || 'N/A';
+            productFat.textContent = product.nutriments.fat_100g || 'N/A';
+            productCarbs.textContent = product.nutriments.carbohydrates_100g || 'N/A';
+            productProtein.textContent = product.nutriments.proteins_100g || 'N/A';
+            productIngredients.textContent = product.ingredients || 'N/A';
+
+            productCard.style.display = 'block';
+          } else if (result.status === 'not_found') {
+            statusElement.textContent = `Barcode ${result.barcode} found, but product not in database.`;
+            statusElement.className = 'text-yellow-600';
+          } else {
+            throw new Error(result.message || 'Unknown error');
+          }
+        }, 'image/jpeg', 0.8);
+      } catch (err) {
+        statusElement.textContent = `Error: ${err.message}`;
+        statusElement.className = 'text-red-600';
+      }
+    });
+
+    if (window.isSecureContext) {
+      startButton.click();
+    }
+  </script>
 </body>
 </html>
