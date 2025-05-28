@@ -6,6 +6,66 @@
   <title>Barcode Scanner</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
   <style>
+    /* Add to your existing style section */
+    .health-concern-item {
+      margin-bottom: 0.5rem;
+      padding-left: 1rem;
+      position: relative;
+    }
+
+    .health-concern-item:before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: #6b7280;
+    }
+
+    .environment-score {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background-color: #10b981;
+      color: white;
+      font-weight: bold;
+      margin-right: 0.5rem;
+    }
+
+    .environment-score.poor {
+      background-color: #ef4444;
+    }
+
+    .environment-score.moderate {
+      background-color: #f59e0b;
+    }
+
+    .environment-score.good {
+      background-color: #10b981;
+    }
+
+    .environment-impact {
+      background-color: #f0fdf4;
+      border-left: 4px solid #10b981;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      border-radius: 0 0.25rem 0.25rem 0;
+    }
+
+    .environment-impact.poor {
+      background-color: #fef2f2;
+      border-left-color: #ef4444;
+    }
+
+    .environment-impact.moderate {
+      background-color: #fffbeb;
+      border-left-color: #f59e0b;
+    }
+    .nutri-score-unknown {
+      background-color: #9ca3af;
+      color: white;
+    }
     .camera-container {
       position: relative;
       width: 100%;
@@ -289,126 +349,154 @@
         statusElement.className = 'text-red-600 mb-4';
       }
     }
+    function updateNutriScoreWithSource(score, source, details) {
+        if (!score || score === '') {
+            nutriScore.style.display = 'none';
+            return;
+        }
+        
+        nutriScore.textContent = score.toUpperCase();
+        nutriScore.className = `nutri-score nutri-score-${score.toLowerCase()}`;
+        nutriScore.style.display = 'inline-flex';
+        
+        // Add tooltip or indicator for calculated scores
+        if (source === 'gemini' || source === 'calculated') {
+            nutriScore.title = `Calculated Nutri-Score: ${details || 'Based on nutritional data'}`;
+            // Add a small indicator
+            const indicator = document.createElement('span');
+            indicator.innerHTML = '*';
+            indicator.style.fontSize = '0.7em';
+            indicator.style.verticalAlign = 'super';
+            indicator.style.color = '#6b7280';
+            nutriScore.appendChild(indicator);
+        } else {
+            nutriScore.title = 'Official Nutri-Score';
+        }
+    }
 
     function updateNutriScore(score) {
       if (!score) {
-        nutriScore.style.display = 'none';
-        return;
+          nutriScore.innerHTML = '?';
+          nutriScore.className = 'nutri-score nutri-score-unknown';
+          nutriScore.style.display = 'inline-flex';
+          return;
       }
       
       nutriScore.textContent = score.toUpperCase();
       nutriScore.className = `nutri-score nutri-score-${score.toLowerCase()}`;
       nutriScore.style.display = 'inline-flex';
-    }
+  }
 
     startButton.addEventListener('click', startCamera);
 
     captureButton.addEventListener('click', async () => {
-      if (!stream) {
-        statusElement.textContent = 'Please start the camera first';
-        statusElement.className = 'text-red-600';
-        return;
-      }
+        if (!stream) {
+            statusElement.textContent = 'Please start the camera first';
+            statusElement.className = 'text-red-600';
+            return;
+        }
 
-      productCard.style.display = 'none';
-      statusElement.textContent = 'Scanning barcode...';
-      statusElement.className = 'text-blue-600';
+        productCard.style.display = 'none';
+        statusElement.textContent = 'Scanning barcode...';
+        statusElement.className = 'text-blue-600';
 
-      try {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        canvas.toBlob(async (blob) => {
-          const formData = new FormData();
-          formData.append('image', blob, 'barcode.jpg');
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('image', blob, 'barcode.jpg');
 
-          const response = await fetch('/scan', {
-            method: 'POST',
-            body: formData
-          });
+                try {
+                    const response = await fetch('/scan', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    console.log('API Response:', result);
 
-          const result = await response.json();
+                    if (result.status === 'success') {
+                        statusElement.textContent = `Found barcode: ${result.barcode}`;
+                        statusElement.className = 'text-green-600';
 
-          if (result.status === 'success') {
-            statusElement.textContent = `Found barcode: ${result.barcode}`;
-            statusElement.className = 'text-green-600';
+                        const product = result.product;
+                        
+                        // Basic product info
+                        productName.textContent = product.product_name || 'Product name not available';
+                        productBrand.textContent = product.brands || 'Brand not specified';
+                        productQuantity.textContent = product.quantity || 'Quantity not specified';
+                        productCalories.textContent = product.nutriments?.['energy-kcal_100g'] ?? '-';
+                        productFat.textContent = product.nutriments?.fat_100g ?? '-';
+                        productCarbs.textContent = product.nutriments?.carbohydrates_100g ?? '-';
+                        productProtein.textContent = product.nutriments?.proteins_100g ?? '-';
+                        productIngredients.textContent = product.ingredients_text || product.ingredients || 'Ingredients not available';
+                        
+                        barcodeType.textContent = result.barcode_type || 'Barcode';
+                        updateNutriScoreWithSource(product.nutriscore_grade, product.nutriscore_source, product.nutriscore_details);
 
-            const product = result.product;
-            // Basic product info
-            productName.textContent = product.product_name || 'N/A';
-            productBrand.textContent = product.brands || 'N/A';
-            productQuantity.textContent = product.quantity || 'N/A';
-            productCalories.textContent = product.nutriments['energy-kcal_100g'] || 'N/A';
-            productFat.textContent = product.nutriments.fat_100g || 'N/A';
-            productCarbs.textContent = product.nutriments.carbohydrates_100g || 'N/A';
-            productProtein.textContent = product.nutriments.proteins_100g || 'N/A';
-            productIngredients.textContent = product.ingredients_text || product.ingredients || 'Ingredients not available';
-            
-            if (product.ingredients_text && product.ingredients_text !== "N/A") {
-                healthAnalysis.innerHTML = product.ingredients_text;
-            } else {
-                healthAnalysis.innerHTML = "No ingredient data available";
-          }
-            // Barcode type
-            barcodeType.textContent = result.barcode_type || 'Barcode';
-            
-            // Nutri-Score
-            updateNutriScore(product.nutriscore_grade);
-            
-            // Analysis section
-            const analysis = product.ingredient_analysis || {};
-            analysisSource.textContent = analysis.source ? `via ${analysis.source}` : '';
-            
-            // Health analysis text
-            healthAnalysis.innerHTML = analysis.analysis || 'No analysis available';
-            
-            // Health warnings
-            healthWarnings.innerHTML = '';
-            if (analysis.health_warnings && analysis.health_warnings.length) {
-              analysis.health_warnings.forEach(warning => {
-                const badge = document.createElement('span');
-                badge.className = 'warning-badge';
-                badge.innerHTML = `
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-                  </svg>
-                  ${warning}
-                `;
-                healthWarnings.appendChild(badge);
-              });
-            } else {
-              healthWarnings.innerHTML = '<span class="text-sm text-gray-500">No significant warnings detected</span>';
-            }
-            
-            // Allergens
-            allergens.innerHTML = '';
-            if (analysis.allergens && analysis.allergens.length) {
-              analysis.allergens.forEach(allergen => {
-                const chip = document.createElement('span');
-                chip.className = 'allergen-chip';
-                chip.textContent = allergen;
-                allergens.appendChild(chip);
-              });
-            } else {
-              allergens.innerHTML = '<span class="text-sm text-gray-500">No common allergens detected</span>';
-            }
-            
-            // Show the product card
-            productCard.style.display = 'block';
-            analysisSection.style.display = analysis.source ? 'block' : 'none';
-          } else if (result.status === 'not_found') {
-            statusElement.textContent = `Barcode ${result.barcode} found, but product not in database.`;
-            statusElement.className = 'text-yellow-600';
-          } else {
-            throw new Error(result.message || 'Unknown error');
-          }
-        }, 'image/jpeg', 0.8);
-      } catch (err) {
-        statusElement.textContent = `Error: ${err.message}`;
-        statusElement.className = 'text-red-600';
-      }
+                        // Analysis section
+                        const analysis = product.ingredient_analysis || {};
+                        analysisSource.textContent = analysis.source ? `via ${analysis.source}` : '';
+                        
+                        // Health analysis text
+                        healthAnalysis.innerHTML = analysis.analysis || 'No analysis available';
+                        
+                        // Health warnings
+                        healthWarnings.innerHTML = '';
+                        if (analysis.health_warnings && analysis.health_warnings.length) {
+                            analysis.health_warnings.forEach(warning => {
+                                const badge = document.createElement('span');
+                                badge.className = 'warning-badge';
+                                badge.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                    </svg>
+                                    ${warning}
+                                `;
+                                healthWarnings.appendChild(badge);
+                            });
+                        } else {
+                            healthWarnings.innerHTML = '<span class="text-sm text-gray-500">No significant warnings detected</span>';
+                        }
+                        
+                        // Allergens
+                        allergens.innerHTML = '';
+                        if (analysis.allergens && analysis.allergens.length) {
+                            analysis.allergens.forEach(allergen => {
+                                const chip = document.createElement('span');
+                                chip.className = 'allergen-chip';
+                                chip.textContent = allergen;
+                                allergens.appendChild(chip);
+                            });
+                        } else {
+                            allergens.innerHTML = '<span class="text-sm text-gray-500">No common allergens detected</span>';
+                        }
+                        
+                        // Always show the product card
+                        productCard.style.display = 'block';
+                        analysisSection.style.display = 'block';
+                        
+                    } else if (result.status === 'not_found') {
+                        statusElement.textContent = `Barcode ${result.barcode} found, but product not in database.`;
+                        statusElement.className = 'text-yellow-600';
+                    } else {
+                        throw new Error(result.message || 'Unknown error');
+                    }
+                } catch (err) {
+                    console.error('Error:', err);
+                    statusElement.textContent = `Error: ${err.message}`;
+                    statusElement.className = 'text-red-600';
+                }
+            }, 'image/jpeg', 0.8);
+        } catch (err) {
+            console.error('Error:', err);
+            statusElement.textContent = `Error: ${err.message}`;
+            statusElement.className = 'text-red-600';
+        }
     });
 
     if (window.isSecureContext) {
