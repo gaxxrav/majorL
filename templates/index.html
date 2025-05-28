@@ -39,6 +39,54 @@
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    /* New analysis styles */
+    .warning-badge {
+      background-color: #fef3c7;
+      color: #92400e;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.5rem;
+    }
+    .warning-badge svg {
+      width: 1em;
+      height: 1em;
+      margin-right: 0.25rem;
+    }
+    .allergen-chip {
+      background-color: #fee2e2;
+      color: #991b1b;
+      padding: 0.25rem 0.5rem;
+      border-radius: 1rem;
+      font-size: 0.75rem;
+      display: inline-block;
+      margin-right: 0.25rem;
+      margin-bottom: 0.25rem;
+    }
+    .analysis-section {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 1rem;
+      margin-top: 1rem;
+    }
+    .nutri-score {
+      font-weight: bold;
+      font-size: 1.25rem;
+      width: 2rem;
+      height: 2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.25rem;
+      margin-left: 0.5rem;
+    }
+    .nutri-score-a { background-color: #038252; color: white; }
+    .nutri-score-b { background-color: #85bb2f; color: white; }
+    .nutri-score-c { background-color: #fef102; color: black; }
+    .nutri-score-d { background-color: #ee8100; color: white; }
+    .nutri-score-e { background-color: #e63e11; color: white; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -81,7 +129,14 @@
       </div>
 
       <div id="productCard" class="product-card bg-gray-50 p-6 rounded-lg border border-gray-200">
-        <h2 class="text-xl font-semibold mb-4" id="productName">Product Name</h2>
+        <div class="flex justify-between items-start">
+          <h2 class="text-xl font-semibold mb-4" id="productName">Product Name</h2>
+          <div>
+            <span id="barcodeType" class="text-sm text-gray-500 bg-gray-200 px-2 py-1 rounded mr-2"></span>
+            <span id="nutriScore" class="nutri-score" style="display: none;"></span>
+          </div>
+        </div>
+        
         <div class="grid grid-cols-2 gap-4">
           <div><p class="text-sm text-gray-500">Brand</p><p id="productBrand" class="font-medium">-</p></div>
           <div><p class="text-sm text-gray-500">Quantity</p><p id="productQuantity" class="font-medium">-</p></div>
@@ -90,9 +145,33 @@
           <div><p class="text-sm text-gray-500">Carbs (g)</p><p id="productCarbs" class="font-medium">-</p></div>
           <div><p class="text-sm text-gray-500">Protein (g)</p><p id="productProtein" class="font-medium">-</p></div>
         </div>
+        
         <div class="mt-4">
           <p class="text-sm text-gray-500">Ingredients</p>
           <p id="productIngredients" class="text-sm">-</p>
+        </div>
+        
+        <div id="analysisSection" class="analysis-section">
+          <div class="flex items-center mb-2">
+            <p class="text-sm text-gray-500 mr-2">Health Analysis</p>
+            <span id="analysisSource" class="text-xs text-gray-400"></span>
+          </div>
+          
+          <div id="healthAnalysis" class="mb-3 text-sm"></div>
+          
+          <div class="mb-3">
+            <p class="text-sm text-gray-500 mb-1">Potential Health Warnings</p>
+            <div id="healthWarnings" class="flex flex-wrap gap-1">
+              <!-- Will be populated by JS -->
+            </div>
+          </div>
+          
+          <div>
+            <p class="text-sm text-gray-500 mb-1">Detected Allergens</p>
+            <div id="allergens" class="flex flex-wrap gap-1">
+              <!-- Will be populated by JS -->
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -113,6 +192,7 @@
     const statusElement = document.getElementById('status');
     const productCard = document.getElementById('productCard');
 
+    // Product info elements
     const productName = document.getElementById('productName');
     const productBrand = document.getElementById('productBrand');
     const productQuantity = document.getElementById('productQuantity');
@@ -121,6 +201,15 @@
     const productCarbs = document.getElementById('productCarbs');
     const productProtein = document.getElementById('productProtein');
     const productIngredients = document.getElementById('productIngredients');
+    const barcodeType = document.getElementById('barcodeType');
+    const nutriScore = document.getElementById('nutriScore');
+
+    // Analysis elements
+    const analysisSection = document.getElementById('analysisSection');
+    const healthAnalysis = document.getElementById('healthAnalysis');
+    const healthWarnings = document.getElementById('healthWarnings');
+    const allergens = document.getElementById('allergens');
+    const analysisSource = document.getElementById('analysisSource');
 
     let stream = null;
     let devices = [];
@@ -201,6 +290,17 @@
       }
     }
 
+    function updateNutriScore(score) {
+      if (!score) {
+        nutriScore.style.display = 'none';
+        return;
+      }
+      
+      nutriScore.textContent = score.toUpperCase();
+      nutriScore.className = `nutri-score nutri-score-${score.toLowerCase()}`;
+      nutriScore.style.display = 'inline-flex';
+    }
+
     startButton.addEventListener('click', startCamera);
 
     captureButton.addEventListener('click', async () => {
@@ -236,6 +336,7 @@
             statusElement.className = 'text-green-600';
 
             const product = result.product;
+            // Basic product info
             productName.textContent = product.product_name || 'N/A';
             productBrand.textContent = product.brands || 'N/A';
             productQuantity.textContent = product.quantity || 'N/A';
@@ -243,9 +344,60 @@
             productFat.textContent = product.nutriments.fat_100g || 'N/A';
             productCarbs.textContent = product.nutriments.carbohydrates_100g || 'N/A';
             productProtein.textContent = product.nutriments.proteins_100g || 'N/A';
-            productIngredients.textContent = product.ingredients || 'N/A';
-
+            productIngredients.textContent = product.ingredients_text || product.ingredients || 'Ingredients not available';
+            
+            if (product.ingredients_text && product.ingredients_text !== "N/A") {
+                healthAnalysis.innerHTML = product.ingredients_text;
+            } else {
+                healthAnalysis.innerHTML = "No ingredient data available";
+          }
+            // Barcode type
+            barcodeType.textContent = result.barcode_type || 'Barcode';
+            
+            // Nutri-Score
+            updateNutriScore(product.nutriscore_grade);
+            
+            // Analysis section
+            const analysis = product.ingredient_analysis || {};
+            analysisSource.textContent = analysis.source ? `via ${analysis.source}` : '';
+            
+            // Health analysis text
+            healthAnalysis.innerHTML = analysis.analysis || 'No analysis available';
+            
+            // Health warnings
+            healthWarnings.innerHTML = '';
+            if (analysis.health_warnings && analysis.health_warnings.length) {
+              analysis.health_warnings.forEach(warning => {
+                const badge = document.createElement('span');
+                badge.className = 'warning-badge';
+                badge.innerHTML = `
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                  </svg>
+                  ${warning}
+                `;
+                healthWarnings.appendChild(badge);
+              });
+            } else {
+              healthWarnings.innerHTML = '<span class="text-sm text-gray-500">No significant warnings detected</span>';
+            }
+            
+            // Allergens
+            allergens.innerHTML = '';
+            if (analysis.allergens && analysis.allergens.length) {
+              analysis.allergens.forEach(allergen => {
+                const chip = document.createElement('span');
+                chip.className = 'allergen-chip';
+                chip.textContent = allergen;
+                allergens.appendChild(chip);
+              });
+            } else {
+              allergens.innerHTML = '<span class="text-sm text-gray-500">No common allergens detected</span>';
+            }
+            
+            // Show the product card
             productCard.style.display = 'block';
+            analysisSection.style.display = analysis.source ? 'block' : 'none';
           } else if (result.status === 'not_found') {
             statusElement.textContent = `Barcode ${result.barcode} found, but product not in database.`;
             statusElement.className = 'text-yellow-600';

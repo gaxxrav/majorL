@@ -3,3 +3,5 @@ pyzbar
 opencv-python
 numpy
 requests
+google-generativeai
+python-dotenv
