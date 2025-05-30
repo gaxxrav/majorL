@@ -55,7 +55,7 @@ def fetch_product_info(barcode):
                 "status": "success",
                 "product_name": product.get("product_name", "N/A"),
                 "brands": product.get("brands", "N/A"),
-                "quantity": product.get("quantity", "N/A"),
+                "sugar": product.get("nutriments", {}).get("sugars_100g", "N/A"),
                 "ingredients_text": ingredients,  # Make sure this matches your frontend
                 "nutriments": product.get("nutriments", {}),
                 "nutriscore_grade": product.get("nutriscore_grade", "").lower()

@@ -199,7 +199,7 @@
         
         <div class="grid grid-cols-2 gap-4">
           <div><p class="text-sm text-gray-500">Brand</p><p id="productBrand" class="font-medium">-</p></div>
-          <div><p class="text-sm text-gray-500">Quantity</p><p id="productQuantity" class="font-medium">-</p></div>
+          <div><p class="text-sm text-gray-500">Sugar (per 100g)</p><p id="productSugar" class="font-medium">-</p></div>
           <div><p class="text-sm text-gray-500">Calories (per 100g)</p><p id="productCalories" class="font-medium">-</p></div>
           <div><p class="text-sm text-gray-500">Fat (g)</p><p id="productFat" class="font-medium">-</p></div>
           <div><p class="text-sm text-gray-500">Carbs (g)</p><p id="productCarbs" class="font-medium">-</p></div>
@@ -255,7 +255,7 @@
     // Product info elements
     const productName = document.getElementById('productName');
     const productBrand = document.getElementById('productBrand');
-    const productQuantity = document.getElementById('productQuantity');
+    const productSugar = document.getElementById('productSugar');
     const productCalories = document.getElementById('productCalories');
     const productFat = document.getElementById('productFat');
     const productCarbs = document.getElementById('productCarbs');
@@ -428,7 +428,7 @@
                         // Basic product info
                         productName.textContent = product.product_name || 'Product name not available';
                         productBrand.textContent = product.brands || 'Brand not specified';
-                        productQuantity.textContent = product.quantity || 'Quantity not specified';
+                        productSugar.textContent = product.sugar || 'Sugar not specified';
                         productCalories.textContent = product.nutriments?.['energy-kcal_100g'] ?? '-';
                         productFat.textContent = product.nutriments?.fat_100g ?? '-';
                         productCarbs.textContent = product.nutriments?.carbohydrates_100g ?? '-';
