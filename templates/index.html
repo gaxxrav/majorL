@@ -429,10 +429,10 @@
                         productName.textContent = product.product_name || 'Product name not available';
                         productBrand.textContent = product.brands || 'Brand not specified';
                         productSugar.textContent = product.sugar || 'Sugar not specified';
-                        productCalories.textContent = product.nutriments?.['energy-kcal_100g'] ?? '-';
-                        productFat.textContent = product.nutriments?.fat_100g ?? '-';
-                        productCarbs.textContent = product.nutriments?.carbohydrates_100g ?? '-';
-                        productProtein.textContent = product.nutriments?.proteins_100g ?? '-';
+                        productCalories.textContent = product.nutrients?.['energy-kcal_100g'] ?? '-';
+                        productFat.textContent = product.nutrients?.fat_100g ?? '-';
+                        productCarbs.textContent = product.nutrients?.carbohydrates_100g ?? '-';
+                        productProtein.textContent = product.nutrients?.proteins_100g ?? '-';
                         productIngredients.textContent = product.ingredients_text || product.ingredients || 'Ingredients not available';
                         
                         barcodeType.textContent = result.barcode_type || 'Barcode';

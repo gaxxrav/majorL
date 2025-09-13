@@ -10,10 +10,10 @@ def fetch_product(barcode):
         print("Product:", product.get("product_name", "N/A"))
         print("Brands:", product.get("brands", "N/A"))
         print("Ingredients:", product.get("ingredients_text", "N/A"))
-        print("Calories (per 100g):", product.get("nutriments", {}).get("energy-kcal_100g", "N/A"))
-        print("Fat (g):", product.get("nutriments", {}).get("fat_100g", "N/A"))
-        print("Carbs (g):", product.get("nutriments", {}).get("carbohydrates_100g", "N/A"))
-        print("Protein (g):", product.get("nutriments", {}).get("proteins_100g", "N/A"))
+        print("Calories (per 100g):", product.get("nutrients", {}).get("energy-kcal_100g", "N/A"))
+        print("Fat (g):", product.get("nutrients", {}).get("fat_100g", "N/A"))
+        print("Carbs (g):", product.get("nutrients", {}).get("carbohydrates_100g", "N/A"))
+        print("Protein (g):", product.get("nutrients", {}).get("proteins_100g", "N/A"))
     else:
         print("Product not found.")
     return None

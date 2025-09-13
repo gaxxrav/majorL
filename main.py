@@ -55,9 +55,9 @@ def fetch_product_info(barcode):
                 "status": "success",
                 "product_name": product.get("product_name", "N/A"),
                 "brands": product.get("brands", "N/A"),
-                "sugar": product.get("nutriments", {}).get("sugars_100g", "N/A"),
+                "sugar": product.get("nutrients", {}).get("sugars_100g", "N/A"),
                 "ingredients_text": ingredients,  # Make sure this matches your frontend
-                "nutriments": product.get("nutriments", {}),
+                "nutrients": product.get("nutrients", {}),
                 "nutriscore_grade": product.get("nutriscore_grade", "").lower()
             }
         return {"status": "not_found", "message": "Product not found in database"}
@@ -131,10 +131,10 @@ def scan():
         if product_info["status"] == "success":
             ## 2. CALCULATE NUTRI-SCORE IF MISSING
             if not product_info.get("nutriscore_grade") or product_info["nutriscore_grade"] == "":
-                if product_info.get("nutriments"):
+                if product_info.get("nutrients"):
                     print("Calculating Nutri-Score with Gemini...")
                     nutriscore_result = calculate_nutriscore_with_gemini(
-                        product_info["nutriments"], 
+                        product_info["nutrients"], 
                         product_info.get("product_name", "")
                     )
                 
@@ -284,19 +284,19 @@ def extract_info_manually(response_text):
             "analysis": "Analysis extraction failed"
         }
 
-def calculate_nutriscore_with_gemini(nutriments, product_name=""):
+def calculate_nutriscore_with_gemini(nutrients, product_name=""):
     """Use Gemini to calculate Nutri-Score based on nutritional data"""
     
     # Extract key nutritional values
-    energy_kj = nutriments.get('energy_100g') or nutriments.get('energy-kj_100g', 0)
-    energy_kcal = nutriments.get('energy-kcal_100g', 0)
-    saturated_fat = nutriments.get('saturated-fat_100g', 0)
-    total_fat = nutriments.get('fat_100g', 0)
-    sugars = nutriments.get('sugars_100g', 0)
-    sodium = nutriments.get('sodium_100g', 0)  # in grams
-    salt = nutriments.get('salt_100g', 0)
-    fiber = nutriments.get('fiber_100g', 0)
-    proteins = nutriments.get('proteins_100g', 0)
+    energy_kj = nutrients.get('energy_100g') or nutrients.get('energy-kj_100g', 0)
+    energy_kcal = nutrients.get('energy-kcal_100g', 0)
+    saturated_fat = nutrients.get('saturated-fat_100g', 0)
+    total_fat = nutrients.get('fat_100g', 0)
+    sugars = nutrients.get('sugars_100g', 0)
+    sodium = nutrients.get('sodium_100g', 0)  # in grams
+    salt = nutrients.get('salt_100g', 0)
+    fiber = nutrients.get('fiber_100g', 0)
+    proteins = nutrients.get('proteins_100g', 0)
     
     # Convert salt to sodium if needed (1g salt = 0.4g sodium)
     if sodium == 0 and salt > 0:
@@ -381,19 +381,19 @@ def calculate_nutriscore_with_gemini(nutriments, product_name=""):
     
     except Exception as e:
         print(f"Gemini Nutri-Score calculation error: {e}")
-    return calculate_simple_nutriscore(nutriments)
+    return calculate_simple_nutriscore(nutrients)
 
-def calculate_simple_nutriscore(nutriments):
+def calculate_simple_nutriscore(nutrients):
     """Fallback simple Nutri-Score calculation"""
     try:
         # Get values with defaults
-        energy_kcal = float(nutriments.get('energy-kcal_100g', 0))
-        saturated_fat = float(nutriments.get('saturated-fat_100g', 0))
-        sugars = float(nutriments.get('sugars_100g', 0))
-        sodium = float(nutriments.get('sodium_100g', 0)) * 1000  # convert to mg
-        salt = float(nutriments.get('salt_100g', 0))
-        fiber = float(nutriments.get('fiber_100g', 0))
-        proteins = float(nutriments.get('proteins_100g', 0))
+        energy_kcal = float(nutrients.get('energy-kcal_100g', 0))
+        saturated_fat = float(nutrients.get('saturated-fat_100g', 0))
+        sugars = float(nutrients.get('sugars_100g', 0))
+        sodium = float(nutrients.get('sodium_100g', 0)) * 1000  # convert to mg
+        salt = float(nutrients.get('salt_100g', 0))
+        fiber = float(nutrients.get('fiber_100g', 0))
+        proteins = float(nutrients.get('proteins_100g', 0))
         
         # Convert salt to sodium if needed
         if sodium == 0 and salt > 0:
