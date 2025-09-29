@@ -1,21 +1,28 @@
 import cv2
+
 import numpy as np
 import requests
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 import json
 import re
 from api import fetch_product
+from store_manager import load_stores, validate_store_id, get_store_info, filter_recommendations_by_store, get_all_stores
 
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-change-in-production'  # Required for sessions
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-def process_barcode_image(image):
+def get_store_id_from_session():
+    return session.get('store_id')
+
+def set_store_id_in_session(store_id):
+    session['store_id'] = store_id
     """Process image to improve barcode detection"""
     # Initialize the barcode detector
     barcode_detector = cv2.barcode.BarcodeDetector()
@@ -69,10 +76,231 @@ def fetch_product_info(barcode):
 
 @app.route('/')
 def index():
+    # Redirect to store selection if no store is selected
+    if 'store_id' not in session:
+        return redirect('/select-store')
+    return render_template('index.html')
+
+@app.route('/select-store', methods=['GET'])
+def select_store_page():
+    return render_template('store_selection.html')
+
+@app.route('/api/stores', methods=['GET'])
+def get_stores():
+    try:
+        stores = get_all_stores()
+        return jsonify({
+            'success': True,
+            'stores': stores
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/verify-store/<store_id>', methods=['GET'])
+def verify_store(store_id):
+    try:
+        store_info = get_store_info(store_id)
+        if store_info:
+            return jsonify({
+                'success': True,
+                'store': {
+                    'name': store_info['name'],
+                    'location': store_info['location']
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Store not found'
+            }), 404
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/select-store', methods=['POST'])
+def select_store():
+    data = request.get_json()
+    store_id = data.get('store_id')
+    
+    if not store_id:
+        return jsonify({
+            'success': False,
+            'error': 'No store ID provided'
+        }), 400
+        
+    if not validate_store_id(store_id):
+        return jsonify({
+            'success': False,
+            'error': 'Invalid store ID'
+        }), 400
+        
+    session['store_id'] = store_id
+    return jsonify({
+        'success': True,
+        'store_id': store_id
+    })
+
+@app.route('/api/current-store', methods=['GET'])
+def current_store():
+    if 'store_id' not in session:
+        return jsonify({
+            'success': False,
+            'error': 'No store selected'
+        }), 404
+        
+    store_info = get_store_info(session['store_id'])
+    if not store_info:
+        return jsonify({
+            'success': False,
+            'error': 'Store not found'
+        }), 404
+        
+    return jsonify({
+        'success': True,
+        'store': {
+            'id': session['store_id'],
+            'name': store_info['name'],
+            'location': store_info['location']
+        }
+    })
+
+@app.route('/product/<barcode>')
+def product_details(barcode):
+    # Get product details from Open Food Facts
+    product = fetch_product(barcode)
+    if not product:
+        return jsonify({"status": "error", "message": "Product not found"}), 404
+    
+    return render_template('result.html', product=product)
+
+@app.route('/api/recommendations/<barcode>', methods=['GET'])
+def get_recommendations(barcode):
+    try:
+        # Get store ID from session
+        store_id = session.get('store_id')
+        if not store_id:
+            return jsonify({
+                'success': False,
+                'error': 'No store selected. Please select a store first.'
+            }), 400
+
+        # Get the original product
+        product = fetch_product(barcode)
+        if not product:
+            return jsonify({
+                'success': False,
+                'error': 'Product not found in database'
+            }), 404
+
+        # Get store products
+        store_products = get_store_products(store_id) if store_id else None
+        
+        # Get recommendations from the recommender
+        recommendations = []
+        try:
+            from recommender import get_recommendations as get_ai_recommendations
+            recommendations = get_ai_recommendations(product)
+            
+            # Filter recommendations based on store inventory if store is selected
+            if store_products:
+                recommendations = [r for r in recommendations if str(r.get('code')) in store_products]
+                
+            # Limit to top 15 recommendations (pagination will handle the rest)
+            recommendations = recommendations[:15]
+            
+        except Exception as e:
+            print(f"Error getting AI recommendations: {str(e)}")
+            # Fallback to similar products from the same category
+            if 'categories' in product and product['categories']:
+                from api import find_similar_products
+                recommendations = find_similar_products(
+                    product['categories'].split(',')[0],
+                    exclude_barcode=barcode,
+                    limit=10
+                )
+                
+                # Filter by store
+                if store_products:
+                    recommendations = [r for r in recommendations if str(r.get('code')) in store_products]
+        
+        return jsonify({
+            'success': True,
+            'recommendations': recommendations,
+            'store_filtered': bool(store_products)
+        })
+        
+    except Exception as e:
+        print(f"Error in get_recommendations: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get recommendations',
+            'details': str(e)
+        }), 500
+
+@app.route('/change-store', methods=['GET'])
+def change_store():
+    session.pop('store_id', None)
+    return redirect('/select-store')
+
+@app.route('/scanner')
+def scanner():
+    if 'store_id' not in session:
+        return redirect('/select-store')
     return render_template('index.html')
 
 @app.route('/product/<barcode>', methods=['GET'])
 def get_product_recommendations(barcode):
+    """
+    Get product details and recommendations for a given barcode.
+
+    Returns JSON with:
+    - scanned_product: {name, brand, nutriscore, ecoscore, category}
+    - recommendations: list of products with {product_name, brand, nutriscore, ecoscore, reason}
+    """
+    try:
+        # Validate barcode format
+        if not barcode or not barcode.isdigit() or len(barcode) < 8:
+            return jsonify({
+                "error": "Invalid barcode format. Must be at least 8 digits."
+            }), 400
+
+        # Get store ID from session
+        store_id = get_store_id_from_session()
+        if not store_id:
+            return jsonify({
+                "error": "Please select a store first."
+            }), 400
+
+        # Fetch product data and recommendations
+        result = fetch_product(barcode)
+
+        if not result:
+            return jsonify({
+                "error": "Product not found or API error occurred."
+            }), 404
+
+        # Filter recommendations by store inventory
+        if 'recommendations' in result and result['recommendations']:
+            filtered_recommendations = filter_recommendations_by_store(
+                result['recommendations'],
+                store_id
+            )
+            result['recommendations'] = filtered_recommendations
+            result['store_filtered'] = True
+        else:
+            result['store_filtered'] = False
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "error": f"Internal server error: {str(e)}"
+        }), 500
     """
     Get product details and recommendations for a given barcode.
     

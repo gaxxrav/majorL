@@ -193,6 +193,17 @@
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
+  <!-- Header with Store Info -->
+  <header class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-gray-900">Barcode Scanner</h1>
+      <div class="text-right">
+        <div class="text-sm text-gray-600">Current Store:</div>
+        <div id="current-store" class="font-medium text-gray-800">Loading store...</div>
+        <a href="/change-store" class="text-sm text-blue-600 hover:underline">Change Store</a>
+      </div>
+    </div>
+  </header>
 
   <div class="container mx-auto px-4 py-8">
     <h1 class="text-3xl font-bold text-center text-blue-600 mb-8">Barcode Scanner</h1>
@@ -630,6 +641,26 @@
     if (window.isSecureContext) {
       startButton.click();
     }
+  </script>
+  <script>
+    // Load store information
+    document.addEventListener('DOMContentLoaded', function() {
+      fetch('/api/current-store')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            const storeEl = document.getElementById('current-store');
+            storeEl.textContent = `${data.store.name} (${data.store.location})`;
+          } else {
+            // Redirect to store selection if no store is selected
+            window.location.href = '/select-store';
+          }
+        })
+        .catch(error => {
+          console.error('Error loading store info:', error);
+          window.location.href = '/select-store';
+        });
+    });
   </script>
 </body>
 </html>
