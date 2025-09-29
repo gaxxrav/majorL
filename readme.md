@@ -11,7 +11,7 @@ CONTENTS:
 
 # Barcode Scanner & Product Analyzer
 
-A Flask-based web application that scans barcodes using a webcam and provides detailed product information, including nutritional analysis, ingredient insights, and environmental impact using the Open Food Facts API and Google's Gemini AI.
+A Flask-based web application that scans barcodes using a webcam and provides detailed product information, including nutritional analysis, ingredient insights, and environmental impact using the Open Food Facts API and Google's Gemini 2.5 Flash AI model.
 
 ## ✨ Features
 
