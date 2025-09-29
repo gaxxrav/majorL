@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import requests
+from pyzbar.pyzbar import decode as pyzbar_decode
 from flask import Flask, render_template, request, jsonify
 import os
 from dotenv import load_dotenv
