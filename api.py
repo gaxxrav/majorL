@@ -1,19 +1,64 @@
 import requests
+import sys
+from pathlib import Path
+from typing import Dict, Optional, Any
 
-def fetch_product(barcode):
-    url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-    response = requests.get(url)
-    data = response.json()
+# Add the project root to Python path to allow absolute imports
+sys.path.append(str(Path(__file__).parent))
 
-    if data.get("status") == 1:
+from recommender import ProductRecommender
+
+def fetch_product(barcode: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch product data from Open Food Facts API along with recommendations.
+    
+    Args:
+        barcode: The barcode of the product to look up
+        
+    Returns:
+        Dict containing product data and recommendations, or None if not found
+    """
+    try:
+        # Request only the fields we need to reduce response size
+        fields = [
+            "code", "product_name", "brands", "categories_tags", "ingredients_text",
+            "nutriscore_grade", "ecoscore_grade", "image_url", "nutriments", 
+            "nova_group", "additives_n", "allergens", "quantity"
+        ]
+        
+        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+        params = {"fields": ",".join(fields)}
+        
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("status") != 1 or not data.get("product"):
+            return None
+            
         product = data["product"]
-        print("Product:", product.get("product_name", "N/A"))
-        print("Brands:", product.get("brands", "N/A"))
-        print("Ingredients:", product.get("ingredients_text", "N/A"))
-        print("Calories (per 100g):", product.get("nutrients", {}).get("energy-kcal_100g", "N/A"))
-        print("Fat (g):", product.get("nutrients", {}).get("fat_100g", "N/A"))
-        print("Carbs (g):", product.get("nutrients", {}).get("carbohydrates_100g", "N/A"))
-        print("Protein (g):", product.get("nutrients", {}).get("proteins_100g", "N/A"))
-    else:
-        print("Product not found.")
-    return None
+        
+        # Get recommendations using the new ProductRecommender
+        recommender = ProductRecommender(product)
+        recommendations = recommender.recommend()
+        
+        # Get the most specific category (last one in categories_tags)
+        categories = product.get("categories_tags", [])
+        category = categories[-1] if categories else None
+        
+        # Format the response according to requirements
+        return {
+            "scanned_product": {
+                "name": product.get("product_name"),
+                "brand": (product.get("brands", "").split(',')[0] 
+                         if product.get("brands") else None),
+                "nutriscore": product.get("nutriscore_grade"),
+                "ecoscore": product.get("ecoscore_grade"),
+                "category": category
+            },
+            "recommendations": recommendations
+        }
+        
+    except requests.RequestException as e:
+        print(f"Error fetching product data: {e}")
+        return None

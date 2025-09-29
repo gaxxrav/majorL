@@ -3,12 +3,11 @@ import numpy as np
 import requests
 from flask import Flask, render_template, request, jsonify
 import os
-from pyzbar.pyzbar import decode as pyzbar_decode
 from dotenv import load_dotenv
 import google.generativeai as genai
-import os
 import json
 import re
+from api import fetch_product
 
 load_dotenv()
 
@@ -18,6 +17,9 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 def process_barcode_image(image):
     """Process image to improve barcode detection"""
+    # Initialize the barcode detector
+    barcode_detector = cv2.barcode.BarcodeDetector()
+    
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
@@ -68,6 +70,37 @@ def fetch_product_info(barcode):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/product/<barcode>', methods=['GET'])
+def get_product_recommendations(barcode):
+    """
+    Get product details and recommendations for a given barcode.
+    
+    Returns JSON with:
+    - scanned_product: {name, brand, nutriscore, ecoscore, category}
+    - recommendations: list of products with {product_name, brand, nutriscore, ecoscore, reason}
+    """
+    try:
+        # Validate barcode format
+        if not barcode or not barcode.isdigit() or len(barcode) < 8:
+            return jsonify({
+                "error": "Invalid barcode format. Must be at least 8 digits."
+            }), 400
+        
+        # Fetch product data and recommendations
+        result = fetch_product(barcode)
+        
+        if not result:
+            return jsonify({
+                "error": "Product not found or API error occurred."
+            }), 404
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            "error": f"Internal server error: {str(e)}"
+        }), 500
 
 @app.route('/scan', methods=['POST'])
 @app.route('/scan', methods=['POST'])
