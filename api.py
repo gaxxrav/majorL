@@ -8,12 +8,13 @@ sys.path.append(str(Path(__file__).parent))
 
 from recommender import ProductRecommender
 
-def fetch_product(barcode: str) -> Optional[Dict[str, Any]]:
+def fetch_product(barcode: str, country_code: str = 'in') -> Optional[Dict[str, Any]]:
     """
-    Fetch product data from Open Food Facts API along with recommendations.
+    Fetch product data from Open Food Facts API with country-specific filtering.
     
     Args:
         barcode: The barcode of the product to look up
+        country_code: ISO 3166-1 alpha-2 country code (default: 'in' for India)
         
     Returns:
         Dict containing product data and recommendations, or None if not found
@@ -23,11 +24,17 @@ def fetch_product(barcode: str) -> Optional[Dict[str, Any]]:
         fields = [
             "code", "product_name", "brands", "categories_tags", "ingredients_text",
             "nutriscore_grade", "ecoscore_grade", "image_url", "nutriments", 
-            "nova_group", "additives_n", "allergens", "quantity"
+            "nova_group", "additives_n", "allergens", "quantity", "countries_tags",
+            "purchase_places"
         ]
         
-        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
-        params = {"fields": ",".join(fields)}
+        # Use v2 of the API for better country filtering
+        url = f"https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+        params = {
+            "fields": ",".join(fields),
+            "cc": country_code,  # Filter by country
+            "lc": "en"          # Prefer English labels
+        }
         
         response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()

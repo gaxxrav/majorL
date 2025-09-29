@@ -43,10 +43,21 @@ def process_barcode_image(image):
     
     return processed_images
 
-def fetch_product_info(barcode):
-    url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+def fetch_product_info(barcode, country_code='in'):
+    """
+    Fetch product information from Open Food Facts API with country-specific filtering
+    
+    Args:
+        barcode (str): The barcode of the product
+        country_code (str): ISO 3166-1 alpha-2 country code (default: 'in' for India)
+    """
+    url = f"https://world.openfoodfacts.org/api/v2/product/{barcode}.json"
+    params = {
+        'cc': country_code,  # Filter by country
+        'lc': 'en'          # Prefer English labels
+    }
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         data = response.json()
         
         if data.get("status") == 1:
@@ -72,28 +83,37 @@ def fetch_product_info(barcode):
 def index():
     return render_template('index.html')
 
-@app.route('/product/<barcode>', methods=['GET'])
+@app.route('/api/recommendations/<barcode>', methods=['GET'])
 def get_product_recommendations(barcode):
     """
-    Get product details and recommendations for a given barcode.
+    Get product details and recommendations for a given barcode with country-specific results.
+    
+    Query Parameters:
+    - country: ISO 3166-1 alpha-2 country code (default: 'in' for India)
     
     Returns JSON with:
     - scanned_product: {name, brand, nutriscore, ecoscore, category}
     - recommendations: list of products with {product_name, brand, nutriscore, ecoscore, reason}
     """
     try:
-        # Validate barcode format
-        if not barcode or not barcode.isdigit() or len(barcode) < 8:
-            return jsonify({
-                "error": "Invalid barcode format. Must be at least 8 digits."
-            }), 400
+        # Get country code from query parameters, default to 'in' (India)
+        country_code = request.args.get('country', 'in').lower()
         
-        # Fetch product data and recommendations
-        result = fetch_product(barcode)
+        # Get the main product info with country filtering
+        product_info = fetch_product_info(barcode, country_code)
+        if not product_info or product_info.get('status') != 'success':
+            return jsonify({
+                "status": "error",
+                "message": f"Product not found in {country_code.upper()} or could not be processed"
+            }), 404
+        
+        # Fetch product data and recommendations with country filtering
+        result = fetch_product(barcode, country_code)
         
         if not result:
             return jsonify({
-                "error": "Product not found or API error occurred."
+                "status": "error",
+                "message": f"Could not find recommendations for products in {country_code.upper()}"
             }), 404
         
         return jsonify(result)
@@ -104,10 +124,12 @@ def get_product_recommendations(barcode):
         }), 500
 
 @app.route('/scan', methods=['POST'])
-@app.route('/scan', methods=['POST'])
 def scan():
     if 'image' not in request.files:
         return jsonify({"status": "error", "message": "No image file provided"}), 400
+        
+    # Get country code from form data or default to 'in' (India)
+    country_code = request.form.get('country', 'in').lower()
     
     file = request.files['image']
     if file.filename == '':
@@ -153,13 +175,14 @@ def scan():
         print(f"Detected barcode: {barcode_data} (Type: {barcode_type})")
         
         # 1. FIRST FETCH FROM OPEN FOOD FACTS
-        product_info = fetch_product_info(barcode_data)
+        product_info = fetch_product_info(barcode_data, country_code)
         
         response_data = {
             "status": product_info["status"],
             "barcode": barcode_data,
             "barcode_type": str(barcode_type),
-            "product": product_info
+            "product": product_info,
+            "country_code": country_code.upper()
         }
 
         if product_info["status"] == "success":
